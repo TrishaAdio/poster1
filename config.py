@@ -34,13 +34,34 @@ COUNTER_FILE = DATA_DIR / "counter.json"
 SESSION = str(BASE_DIR / "userbot")
 
 
-def post_channel():
-    """POST_CHANNEL as an int id when numeric, else the raw string."""
-    s = POST_CHANNEL_RAW.strip()
+def coerce_channel(s: str):
+    """A channel string as an int id when numeric, else the raw string."""
+    s = (s or "").strip()
     if not s:
         return s
     body = s[1:] if s.startswith("-") else s
     return int(s) if body.isdigit() else s
+
+
+def post_channel():
+    """POST_CHANNEL as an int id when numeric, else the raw string."""
+    return coerce_channel(POST_CHANNEL_RAW)
+
+
+def save_post_channel(value: str) -> None:
+    """Write/replace POST_CHANNEL in .env, preserving other lines."""
+    env = BASE_DIR / ".env"
+    lines = env.read_text().splitlines() if env.exists() else []
+    out, found = [], False
+    for ln in lines:
+        if ln.startswith("POST_CHANNEL="):
+            out.append(f"POST_CHANNEL={value}")
+            found = True
+        else:
+            out.append(ln)
+    if not found:
+        out.append(f"POST_CHANNEL={value}")
+    env.write_text("\n".join(out) + "\n")
 
 
 def require(*names: str) -> None:

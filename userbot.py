@@ -177,7 +177,7 @@ async def on_message(event):
 
 async def main() -> None:
     global client
-    config.require("API_ID", "API_HASH", "POST_CHANNEL_RAW")
+    config.require("API_ID", "API_HASH")  # channel is chosen interactively if needed
 
     client = TelegramClient(config.SESSION, config.API_ID, config.API_HASH)
     client.add_event_handler(on_message, events.NewMessage)
@@ -186,28 +186,26 @@ async def main() -> None:
     me = await client.get_me()
     _state["self_id"] = me.id
 
-    from resolve import list_channels, resolve_channel
+    from resolve import choose_channel, resolve_channel
 
-    channel = await resolve_channel(client, config.post_channel())
-    if channel is None:
-        print(f"\nCould not access POST_CHANNEL={config.POST_CHANNEL_RAW!r}.")
-        print(f"This account ({me.first_name}, id {me.id}) must be a MEMBER of "
-              "the channel, and an ADMIN with post rights to post there.\n")
-        chans = await list_channels(client)
-        if chans:
-            print("Channels this account IS in (use one it can post to):")
-            for c in chans:
-                post = "can post" if c["can_post"] else "NO post rights"
-                print(f"  {c['id']}   {c['title']}   [{post}]")
-            print("\nEasiest fix: run  python pick_channel.py  to choose one.")
-        else:
-            print("This account isn't in any channel yet. To get it in:")
-            print("  1) Set POST_CHANNEL in .env to the channel's INVITE LINK")
-            print("     (t.me/+... ) — the account will auto-join on start; OR")
-            print("  2) Add this account to the channel manually.")
-            print("  Then promote it to ADMIN with 'Post messages' to post.")
-        await client.disconnect()
-        return
+    # Try the configured channel; if it's missing or unusable, just let the
+    # user pick one from a list right here — no fiddling with .env needed.
+    channel = None
+    if config.POST_CHANNEL_RAW.strip():
+        channel = await resolve_channel(client, config.post_channel())
+        if channel is None:
+            print(f"\nCould not use POST_CHANNEL={config.POST_CHANNEL_RAW!r} "
+                  f"(this account isn't in it). Pick one below.")
+
+    while channel is None:
+        value = await choose_channel(client)
+        channel = await resolve_channel(client, config.coerce_channel(value))
+        if channel is None:
+            print("  Couldn't access that one — try another (or paste an "
+                  "invite link so the account joins).")
+            continue
+        config.save_post_channel(value)  # remember it for next time
+        print("Saved this channel to .env.")
 
     _state["channel"] = channel
     asyncio.create_task(_worker())

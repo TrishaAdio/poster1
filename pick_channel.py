@@ -16,21 +16,6 @@ import config
 from resolve import choose_channel
 
 
-def update_env(value: str) -> None:
-    env = config.BASE_DIR / ".env"
-    lines = env.read_text().splitlines() if env.exists() else []
-    out, found = [], False
-    for ln in lines:
-        if ln.startswith("POST_CHANNEL="):
-            out.append(f"POST_CHANNEL={value}")
-            found = True
-        else:
-            out.append(ln)
-    if not found:
-        out.append(f"POST_CHANNEL={value}")
-    env.write_text("\n".join(out) + "\n")
-
-
 async def main() -> None:
     config.require("API_ID", "API_HASH")
     client = TelegramClient(config.SESSION, config.API_ID, config.API_HASH)
@@ -39,7 +24,7 @@ async def main() -> None:
     print(f"Logged in as {me.first_name} (id {me.id}).")
 
     value = await choose_channel(client)
-    update_env(value)
+    config.save_post_channel(value)
     print(f"\nSaved POST_CHANNEL={value} to .env")
     print("Start the bot with:  python userbot.py")
     await client.disconnect()
