@@ -186,13 +186,31 @@ async def main() -> None:
     me = await client.get_me()
     _state["self_id"] = me.id
 
-    from resolve import resolve_channel  # local import keeps deps tidy
-    _state["channel"] = await resolve_channel(client, config.post_channel())
+    from resolve import list_channels, resolve_channel
 
+    channel = await resolve_channel(client, config.post_channel())
+    if channel is None:
+        print(f"\nCould not access POST_CHANNEL={config.POST_CHANNEL_RAW!r}.")
+        print(f"This account ({me.first_name}, id {me.id}) must be a MEMBER of "
+              "the channel, and an ADMIN with post rights to post there.\n")
+        chans = await list_channels(client)
+        if chans:
+            print("Channels this account is currently in:")
+            for cid, title in chans:
+                print(f"  {cid}   {title}")
+            print("\nSet POST_CHANNEL in .env to one of the ids above (or its "
+                  "@username / invite link), make sure this account can post, "
+                  "then run again.")
+        else:
+            print("This account isn't in any channels yet. Join/get added to your "
+                  "target channel (with post rights), then run again.")
+        await client.disconnect()
+        return
+
+    _state["channel"] = channel
     asyncio.create_task(_worker())
-    ch = _state["channel"]
     print(f"Running as {me.first_name} (id {me.id}).")
-    print(f"Posting to: {getattr(ch, 'title', ch)}")
+    print(f"Posting to: {getattr(channel, 'title', channel)}")
     print("Send a .zip to this account's DM / Saved Messages. Ctrl+C to stop.")
     await client.run_until_disconnected()
 
