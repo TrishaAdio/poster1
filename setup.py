@@ -66,9 +66,7 @@ async def main() -> None:
         "API_HASH": api_hash,
         "POST_CHANNEL": post_channel,
         "OWNERS": owners,
-        "COLLAGE_SIZE": "9",
-        "COLLAGE_COLS": "3",
-        "COLLAGE_CELL": "512",
+        "ALBUM_SIZE": "9",
         "SEND_DELAY": "2",
     })
 

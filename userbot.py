@@ -2,8 +2,8 @@
 
 Send a .zip to this account's DM (or Saved Messages). It is assigned #1, #2, ...
 then downloaded, extracted, and posted to POST_CHANNEL:
-  - images  -> 9-per collage, captioned  Album - #N   (bold)
-  - videos  -> one by one,     captioned  Video - #N   (bold)
+  - images  -> native Telegram album (grouped grid, up to 9), caption Album - #N
+  - videos  -> one by one, captioned  Video - #N   (bold)
 
 Handles files up to ~2 GB (userbot login). Install cryptg for speed.
 
@@ -19,7 +19,6 @@ from pathlib import Path
 
 from telethon import TelegramClient, events
 
-import collage
 import config
 import counter
 import media
@@ -116,18 +115,15 @@ async def process_zip(msg, zid: int) -> None:
         channel = _state["channel"]
         albums = 0
 
-        # --- images -> collages (Album - #N) --------------------------------
-        for i, batch in enumerate(media.chunk(images, config.COLLAGE_SIZE), 1):
-            out = work / f"collage_{i}.jpg"
-            ok = await asyncio.to_thread(
-                collage.make_collage, [str(p) for p in batch], str(out),
-                config.COLLAGE_CELL, config.COLLAGE_COLS,
-            )
-            if not ok:
-                continue
+        # --- images -> native Telegram albums (Album - #N) ------------------
+        # Passing a list of files to send_file groups them into one album, which
+        # Telegram lays out in its own grid. Caption goes on the first item.
+        for batch in media.chunk(images, config.ALBUM_SIZE):
+            files = [str(p) for p in batch]
             await client.send_file(
-                channel, str(out),
+                channel, files,
                 caption=f"<b>Album - #{zid}</b>", parse_mode="html",
+                progress_callback=_progress(status, f"#{zid} album {albums + 1}"),
             )
             albums += 1
             await asyncio.sleep(config.SEND_DELAY)

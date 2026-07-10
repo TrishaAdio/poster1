@@ -5,7 +5,8 @@ Send a **.zip** to this userbot's DM (or Saved Messages). It:
 1. Assigns it a sequential id: **#1, #2, #3 ...**
 2. Downloads and extracts it (files up to ~**2 GB**).
 3. Posts the contents to your channel:
-   - **Images** -> combined into **9-per collages** (3x3), captioned **`Album - #N`**
+   - **Images** -> grouped into a **native Telegram album** (Telegram's own grid
+     layout, up to 9 per album), captioned **`Album - #N`**
    - **Videos** -> sent **one by one**, each captioned **`Video - #N`**
 
 Captions are **bold**. The id `#N` is the same for everything from one zip.
@@ -45,29 +46,27 @@ avoid flood limits.
 | File          | Role                                                        |
 |---------------|-------------------------------------------------------------|
 | `setup.py`    | Interactive setup: creds + channel + OTP login, writes .env |
-| `config.py`   | Loads `.env`, paths, collage/pacing settings                |
-| `userbot.py`  | Main: watches DM for zips, downloads, posts collages/videos |
-| `collage.py`  | Builds the 3x3 (9-image) collage with Pillow                |
+| `config.py`   | Loads `.env`, paths, album/pacing settings                  |
+| `userbot.py`  | Main: watches DM for zips, downloads, posts albums/videos   |
 | `media.py`    | Finds images/videos in the extracted folder (natural sort)  |
 | `counter.py`  | Persistent `#N` counter                                     |
 | `resolve.py`  | Resolves the channel (even a private one by numeric id)     |
 
 ## Tuning (`.env`)
 
-| Var            | Default | Meaning                              |
-|----------------|---------|--------------------------------------|
-| `COLLAGE_SIZE` | 9       | images per collage                   |
-| `COLLAGE_COLS` | 3       | grid columns                         |
-| `COLLAGE_CELL` | 512     | pixels per cell                      |
-| `SEND_DELAY`   | 2       | seconds between posts (flood safety) |
-| `OWNERS`       | —       | extra user ids allowed to send zips  |
+| Var          | Default | Meaning                                     |
+|--------------|---------|---------------------------------------------|
+| `ALBUM_SIZE` | 9       | images per Telegram album (max 10)          |
+| `SEND_DELAY` | 2       | seconds between posts (flood safety)        |
+| `OWNERS`     | —       | extra user ids allowed to send zips         |
 
 ## Notes
 
+- Images post as a **real Telegram album** (compressed photos in Telegram's
+  grid), not a stitched image — matches the native look.
 - Only the logged-in account (Saved Messages) and any ids in `OWNERS` can
   trigger processing — random DMs are ignored.
 - Supported images: jpg/png/webp/bmp/gif/tiff/heic. Videos:
   mp4/mkv/avi/mov/webm/m4v and more.
-- Corrupt/unreadable images are skipped; `__MACOSX`, `.DS_Store`, `Thumbs.db`
-  are ignored.
+- `__MACOSX`, `.DS_Store`, `Thumbs.db` are ignored.
 - `.env` and `*.session` are gitignored — never commit them.

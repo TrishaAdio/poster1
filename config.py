@@ -19,10 +19,9 @@ OWNERS = [
     if x.strip().lstrip("-").isdigit()
 ]
 
-# --- Collage / pacing -----------------------------------------------------
-COLLAGE_SIZE = int(os.getenv("COLLAGE_SIZE", "9"))
-COLLAGE_COLS = int(os.getenv("COLLAGE_COLS", "3"))
-COLLAGE_CELL = int(os.getenv("COLLAGE_CELL", "512"))
+# --- Album / pacing -------------------------------------------------------
+# Images per native Telegram album. Telegram allows at most 10 per group.
+ALBUM_SIZE = max(1, min(int(os.getenv("ALBUM_SIZE", "9")), 10))
 SEND_DELAY = float(os.getenv("SEND_DELAY", "2"))
 
 # --- Paths ----------------------------------------------------------------
