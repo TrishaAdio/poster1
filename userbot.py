@@ -195,14 +195,17 @@ async def main() -> None:
               "the channel, and an ADMIN with post rights to post there.\n")
         chans = await list_channels(client)
         if chans:
-            print("Channels this account is currently in:")
-            for cid, title in chans:
-                print(f"  {cid}   {title}")
-            print("\nEasiest fix: run  python pick_channel.py  to choose one "
-                  "from a list. Make sure this account can post there.")
+            print("Channels this account IS in (use one it can post to):")
+            for c in chans:
+                post = "can post" if c["can_post"] else "NO post rights"
+                print(f"  {c['id']}   {c['title']}   [{post}]")
+            print("\nEasiest fix: run  python pick_channel.py  to choose one.")
         else:
-            print("This account isn't in any channels yet. Join/get added to your "
-                  "target channel (with post rights), then run again.")
+            print("This account isn't in any channel yet. To get it in:")
+            print("  1) Set POST_CHANNEL in .env to the channel's INVITE LINK")
+            print("     (t.me/+... ) — the account will auto-join on start; OR")
+            print("  2) Add this account to the channel manually.")
+            print("  Then promote it to ADMIN with 'Post messages' to post.")
         await client.disconnect()
         return
 

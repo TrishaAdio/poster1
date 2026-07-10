@@ -34,6 +34,19 @@ number, and it updates `POST_CHANNEL` in `.env`.
 
 > The logged-in account must be able to **post** in the target channel.
 
+### Getting the account into the channel
+
+The userbot account must be a **member** of the channel, and (for a broadcast
+channel) an **admin with "Post messages"** rights. If it isn't in the channel:
+
+- Set `POST_CHANNEL` to the channel's **invite link** (`t.me/+...`) — the
+  account will **auto-join** on startup. A public `@username` works too.
+- A bare numeric id (`-100...`) can't be auto-joined; add the account to that
+  channel manually first.
+
+After it's a member, promote it to admin with post rights (needed for broadcast
+channels), then run `python pick_channel.py` or start the bot.
+
 ## Run
 
 ```bash
