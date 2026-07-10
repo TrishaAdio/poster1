@@ -1,0 +1,16 @@
+# Secrets
+.env
+
+# Telethon session files (contain your login — NEVER commit)
+*.session
+*.session-journal
+
+# Runtime
+data/*.json
+work/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
