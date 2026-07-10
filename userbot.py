@@ -198,9 +198,8 @@ async def main() -> None:
             print("Channels this account is currently in:")
             for cid, title in chans:
                 print(f"  {cid}   {title}")
-            print("\nSet POST_CHANNEL in .env to one of the ids above (or its "
-                  "@username / invite link), make sure this account can post, "
-                  "then run again.")
+            print("\nEasiest fix: run  python pick_channel.py  to choose one "
+                  "from a list. Make sure this account can post there.")
         else:
             print("This account isn't in any channels yet. Join/get added to your "
                   "target channel (with post rights), then run again.")

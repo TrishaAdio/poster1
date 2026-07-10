@@ -45,9 +45,6 @@ async def main() -> None:
 
     api_id = ask("API_ID")
     api_hash = ask("API_HASH", secret=True)
-    post_channel = ask("POST_CHANNEL (@username, -100... id, or invite link)")
-    owners = ask("OWNERS - extra user ids allowed to send zips (comma sep)",
-                 default="")
 
     print("\n" + "-" * 60)
     print(" Logging in your userbot account.")
@@ -59,6 +56,13 @@ async def main() -> None:
     await client.start(phone=lambda: phone)  # prompts OTP + 2FA itself
     me = await client.get_me()
     print(f"Logged in as {me.first_name} (id {me.id}).")
+
+    # Pick the destination channel from a list (must be logged in first).
+    from resolve import choose_channel
+    post_channel = await choose_channel(client)
+
+    owners = ask("OWNERS - extra user ids allowed to send zips (comma sep)",
+                 default="")
     await client.disconnect()
 
     write_env({

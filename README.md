@@ -18,9 +18,19 @@ pip install -r requirements.txt
 python setup.py
 ```
 
-`setup.py` asks for `API_ID` / `API_HASH` (from https://my.telegram.org), the
-destination channel, and logs in your account (phone -> OTP code -> 2FA
-password if set). It writes `.env` and creates the session.
+`setup.py` asks for `API_ID` / `API_HASH` (from https://my.telegram.org), logs
+in your account (phone -> OTP code -> 2FA password if set), then shows a
+**numbered list of your channels to pick the destination** from. It writes
+`.env` and creates the session.
+
+To change the channel later without redoing setup:
+
+```bash
+python pick_channel.py
+```
+
+It lists your channels (marking which ones this account can post to), you pick a
+number, and it updates `POST_CHANNEL` in `.env`.
 
 > The logged-in account must be able to **post** in the target channel.
 

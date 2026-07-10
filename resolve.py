@@ -32,10 +32,55 @@ async def resolve_channel(client: TelegramClient, ident):
     return None
 
 
-async def list_channels(client: TelegramClient) -> list[tuple[int, str]]:
-    """(id, title) for every broadcast/supergroup this account is in."""
+async def list_channels(client: TelegramClient) -> list[dict]:
+    """Every broadcast channel / supergroup this account is in, with post hint."""
     out = []
     async for dialog in client.iter_dialogs():
-        if dialog.is_channel:
-            out.append((dialog.id, dialog.name or "(no title)"))
+        if not dialog.is_channel:
+            continue
+        e = dialog.entity
+        broadcast = bool(getattr(e, "broadcast", False))
+        creator = bool(getattr(e, "creator", False))
+        ar = getattr(e, "admin_rights", None)
+        if broadcast:
+            can_post = creator or (ar is not None and getattr(ar, "post_messages", False))
+        else:
+            can_post = True  # normal members can post in groups
+        out.append({
+            "id": dialog.id,
+            "title": dialog.name or "(no title)",
+            "broadcast": broadcast,
+            "can_post": can_post,
+        })
     return out
+
+
+async def choose_channel(client: TelegramClient) -> str:
+    """Interactive terminal picker. Returns the chosen POST_CHANNEL value."""
+    print("\nLoading your channels...")
+    chans = await list_channels(client)
+    if chans:
+        print("\nChannels this account is in:")
+        for i, c in enumerate(chans, 1):
+            kind = "channel" if c["broadcast"] else "group"
+            post = "can post" if c["can_post"] else "NO post rights"
+            print(f"  {i:>2}. {c['title']}   [{kind}, {post}]   id={c['id']}")
+        print("      (or paste a @username / id / invite link)")
+    else:
+        print("\nThis account isn't in any channels yet.")
+
+    while True:
+        raw = input("\nPick a number, or paste @username / id / link: ").strip()
+        if not raw:
+            continue
+        if raw.isdigit() and chans:
+            idx = int(raw)
+            if 1 <= idx <= len(chans):
+                chosen = chans[idx - 1]
+                if not chosen["can_post"]:
+                    print("  Warning: this account has no post rights there. "
+                          "Make it an admin, or pick another.")
+                return str(chosen["id"])
+            print("  out of range")
+            continue
+        return raw
