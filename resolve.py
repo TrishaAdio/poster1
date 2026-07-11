@@ -10,7 +10,11 @@ from __future__ import annotations
 import re
 
 from telethon import TelegramClient, utils
-from telethon.errors import UserAlreadyParticipantError
+from telethon.errors import (
+    InviteHashExpiredError,
+    InviteHashInvalidError,
+    UserAlreadyParticipantError,
+)
 from telethon.tl.functions.channels import JoinChannelRequest
 from telethon.tl.functions.messages import (
     CheckChatInviteRequest,
@@ -50,6 +54,10 @@ async def _try_join(client: TelegramClient, ident):
                 return getattr(inv, "chat", None)
             except Exception:
                 return None
+        except (InviteHashExpiredError, InviteHashInvalidError):
+            print("That invite link is expired or invalid — create a fresh one, "
+                  "or pick a channel from the list below.")
+            return None
         except Exception as e:
             print(f"Could not join via invite link: {type(e).__name__}")
             return None
@@ -70,29 +78,40 @@ async def _try_join(client: TelegramClient, ident):
 
 
 async def resolve_channel(client: TelegramClient, ident):
-    """Return the channel entity, or None if the account can't access it."""
-    # 1) direct (cached id, or resolvable @username)
+    """Return the channel entity, or None if the account can't access it.
+
+    Never raises — any failure returns None so the caller can fall back to the
+    interactive picker.
+    """
+    # 1) invite link / username: try to (join and) resolve it first
+    if isinstance(ident, str):
+        try:
+            joined = await _try_join(client, ident)
+        except Exception:
+            joined = None
+        if joined is not None:
+            return joined
+
+    # 2) direct lookup (cached id, or resolvable @username)
     try:
         return await client.get_entity(ident)
-    except (ValueError, TypeError):
+    except Exception:
         pass
 
-    # 2) if it's a link/username, try to join it
-    joined = await _try_join(client, ident)
-    if joined is not None:
-        return joined
-
-    # 3) scan the account's existing chats
-    print("Channel not cached — scanning your chats...")
-    async for dialog in client.iter_dialogs():
-        ent = dialog.entity
-        if dialog.id == ident:
-            return ent
-        try:
-            if ent is not None and utils.get_peer_id(ent) == ident:
+    # 3) scan the account's existing chats and match by id
+    try:
+        print("Channel not cached — scanning your chats...")
+        async for dialog in client.iter_dialogs():
+            ent = dialog.entity
+            if dialog.id == ident:
                 return ent
-        except Exception:
-            pass
+            try:
+                if ent is not None and utils.get_peer_id(ent) == ident:
+                    return ent
+            except Exception:
+                pass
+    except Exception:
+        pass
 
     return None
 
