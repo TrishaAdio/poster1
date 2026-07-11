@@ -64,6 +64,20 @@ for big files) much faster, so 2 GB downloads/uploads run at full speed with no
 extra setup. Jobs are queued and processed one at a time to stay smooth and
 avoid flood limits.
 
+## Videos
+
+- Videos larger than **`MAX_VIDEO_MB`** (default 70) are **skipped** — not sent.
+- A real thumbnail is generated per video with **ffmpeg** (a representative,
+  non-black frame) plus proper duration/size, so videos don't show as a black
+  square. Install ffmpeg for this: `sudo apt install ffmpeg`. Without it, videos
+  still send but keep Telegram's default (possibly black) thumbnail.
+
+## Progress output
+
+Zips sent from **Saved Messages** report progress in the **terminal** (no
+message edits, so Saved Messages isn't flooded). Zips from another DM get a
+single status message that's edited in place.
+
 ## Files
 
 | File          | Role                                                        |

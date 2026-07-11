@@ -4,8 +4,14 @@ Send a .zip to this account's DM (or Saved Messages). It is assigned #1, #2, ...
 then downloaded, extracted, and posted to POST_CHANNEL:
   - images  -> native Telegram album (grouped grid, up to 9), caption Album - #N
   - videos  -> one by one, captioned  Video - #N   (bold)
+             (videos over MAX_VIDEO_MB are skipped; a real thumbnail is
+              generated via ffmpeg so none show up as a black square)
 
-Handles files up to ~2 GB (userbot login). Install cryptg for speed.
+Progress for zips sent from Saved Messages is printed to the TERMINAL (no
+message edits), to avoid flooding Saved Messages.
+
+Handles files up to ~2 GB (userbot login). Install cryptg for speed and ffmpeg
+for video thumbnails.
 
 Run:  python userbot.py    (Ctrl+C to stop)
 """
@@ -18,10 +24,12 @@ import zipfile
 from pathlib import Path
 
 from telethon import TelegramClient, events
+from telethon.tl.types import DocumentAttributeVideo
 
 import config
 import counter
 import media
+import video
 
 # Created in main() so the module stays importable without credentials.
 client: TelegramClient | None = None
@@ -56,23 +64,36 @@ def _allowed(sender_id: int) -> bool:
     return sender_id == _state["self_id"] or sender_id in config.OWNERS
 
 
-def _progress(status_msg, label: str):
-    """Throttled progress callback (edits at most every 5% / 4s)."""
-    st = {"pct": -5, "t": 0.0}
+class Reporter:
+    """Status output. In Saved Messages -> print to terminal (no edits, no
+    flood). In another DM -> edit a single status message."""
 
-    async def cb(current, total):
-        now = time.time()
-        pct = int(current * 100 / total) if total else 0
-        if pct >= st["pct"] + 5 or now - st["t"] >= 4:
-            st["pct"], st["t"] = pct, now
+    def __init__(self, zid: int, status_msg=None):
+        self.zid = zid
+        self.status = status_msg  # None => terminal only
+
+    async def set(self, text: str) -> None:
+        line = f"#{self.zid}: {text}"
+        if self.status is None:
+            print(line, flush=True)
+        else:
             try:
-                await status_msg.edit(
-                    f"{label}: {pct}%  ({_human(current)} / {_human(total)})"
-                )
+                await self.status.edit(line)
             except Exception:
                 pass
 
-    return cb
+    def progress(self, label: str):
+        """Throttled progress callback (at most every 5% / 4s)."""
+        st = {"pct": -5, "t": 0.0}
+
+        async def cb(current, total):
+            now = time.time()
+            pct = int(current * 100 / total) if total else 0
+            if pct >= st["pct"] + 5 or now - st["t"] >= 4:
+                st["pct"], st["t"] = pct, now
+                await self.set(f"{label}: {pct}%  ({_human(current)} / {_human(total)})")
+
+        return cb
 
 
 def _safe_extract(zip_path: Path, dest: Path) -> None:
@@ -92,25 +113,28 @@ async def process_zip(msg, zid: int) -> None:
     work = config.WORK_DIR / f"zip_{zid}_{int(time.time())}"
     work.mkdir(parents=True, exist_ok=True)
     zip_path = work / "archive.zip"
-    status = await msg.reply(f"#{zid}: downloading...")
+
+    # Saved Messages -> terminal progress (no message edits, no flood).
+    is_saved = msg.chat_id == _state["self_id"]
+    status_msg = None if is_saved else await msg.reply(f"#{zid}: downloading...")
+    rep = Reporter(zid, status_msg)
 
     try:
+        await rep.set("downloading...")
         await client.download_media(
-            msg, file=str(zip_path), progress_callback=_progress(status, f"#{zid} download")
+            msg, file=str(zip_path), progress_callback=rep.progress("download")
         )
 
-        await status.edit(f"#{zid}: extracting...")
+        await rep.set("extracting...")
         extract_dir = work / "unz"
         extract_dir.mkdir()
         await asyncio.to_thread(_safe_extract, zip_path, extract_dir)
 
         images, videos = await asyncio.to_thread(media.scan, extract_dir)
         if not images and not videos:
-            await status.edit(f"#{zid}: no images or videos found.")
+            await rep.set("no images or videos found.")
             return
-        await status.edit(
-            f"#{zid}: {len(images)} image(s), {len(videos)} video(s). Posting..."
-        )
+        await rep.set(f"{len(images)} image(s), {len(videos)} video(s). Posting...")
 
         channel = _state["channel"]
         albums = 0
@@ -123,26 +147,51 @@ async def process_zip(msg, zid: int) -> None:
             await client.send_file(
                 channel, files,
                 caption=f"<b>Album - #{zid}</b>", parse_mode="html",
-                progress_callback=_progress(status, f"#{zid} album {albums + 1}"),
+                progress_callback=rep.progress(f"album {albums + 1}"),
             )
             albums += 1
             await asyncio.sleep(config.SEND_DELAY)
 
         # --- videos -> one by one (Video - #N) ------------------------------
+        # Skip videos over the size limit; generate a real thumbnail so none
+        # appear as a black square.
         sent_videos = 0
+        skipped = 0
         for v in videos:
+            size = v.stat().st_size
+            if size > config.MAX_VIDEO_BYTES:
+                skipped += 1
+                await rep.set(
+                    f"skipped {v.name} ({_human(size)} > {config.MAX_VIDEO_MB:.0f}MB)"
+                )
+                continue
+
+            thumb_path = work / f"thumb_{sent_videos}.jpg"
+            meta = await asyncio.to_thread(video.probe, str(v))
+            has_thumb = await asyncio.to_thread(video.make_thumbnail, str(v), str(thumb_path))
+
+            attributes = None
+            if meta and (meta["w"] or meta["duration"]):
+                attributes = [DocumentAttributeVideo(
+                    duration=meta["duration"], w=meta["w"] or 0, h=meta["h"] or 0,
+                    supports_streaming=True,
+                )]
+
             await client.send_file(
                 channel, str(v),
                 caption=f"<b>Video - #{zid}</b>", parse_mode="html",
                 supports_streaming=True,
-                progress_callback=_progress(status, f"#{zid} video {sent_videos + 1}/{len(videos)}"),
+                thumb=str(thumb_path) if has_thumb else None,
+                attributes=attributes,
+                progress_callback=rep.progress(f"video {sent_videos + 1}/{len(videos)}"),
             )
             sent_videos += 1
             await asyncio.sleep(config.SEND_DELAY)
 
-        await status.edit(
-            f"#{zid}: done. {albums} album(s), {sent_videos} video(s) posted."
-        )
+        summary = f"done. {albums} album(s), {sent_videos} video(s) posted"
+        if skipped:
+            summary += f", {skipped} video(s) skipped (> {config.MAX_VIDEO_MB:.0f}MB)"
+        await rep.set(summary + ".")
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
@@ -171,7 +220,11 @@ async def on_message(event):
     if not _allowed(event.sender_id):
         return
     zid = counter.next_id()
-    await event.reply(f"Queued as #{zid} (in queue: {_queue.qsize() + 1}).")
+    qpos = _queue.qsize() + 1
+    if event.chat_id == _state["self_id"]:
+        print(f"Queued zip as #{zid} (in queue: {qpos}).", flush=True)
+    else:
+        await event.reply(f"Queued as #{zid} (in queue: {qpos}).")
     await _queue.put((event.message, zid))
 
 

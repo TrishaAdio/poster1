@@ -19,9 +19,12 @@ OWNERS = [
     if x.strip().lstrip("-").isdigit()
 ]
 
-# --- Album / pacing -------------------------------------------------------
+# --- Album / video / pacing -----------------------------------------------
 # Images per native Telegram album. Telegram allows at most 10 per group.
 ALBUM_SIZE = max(1, min(int(os.getenv("ALBUM_SIZE", "9")), 10))
+# Videos larger than this are skipped (not sent to the channel).
+MAX_VIDEO_MB = float(os.getenv("MAX_VIDEO_MB", "70"))
+MAX_VIDEO_BYTES = int(MAX_VIDEO_MB * 1024 * 1024)
 SEND_DELAY = float(os.getenv("SEND_DELAY", "2"))
 
 # --- Paths ----------------------------------------------------------------
